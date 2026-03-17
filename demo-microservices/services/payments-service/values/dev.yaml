@@ -1,0 +1,6 @@
+image:
+  tag: "0.1.0-dev.1"
+
+configmap:
+  data:
+    LOG_LEVEL: debug

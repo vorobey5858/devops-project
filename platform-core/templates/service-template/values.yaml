@@ -1,0 +1,166 @@
+nameOverride: ""
+fullnameOverride: ""
+environment: dev
+
+commonLabels: {}
+podLabels: {}
+podAnnotations: {}
+
+replicaCount: 2
+revisionHistoryLimit: 3
+progressDeadlineSeconds: 600
+minReadySeconds: 5
+terminationGracePeriodSeconds: 30
+
+image:
+  repository: devops/demo-service
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+containerPort: 8080
+command: []
+args: []
+
+podSecurityContext:
+  fsGroup: 10001
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+service:
+  type: ClusterIP
+  port: 8080
+  annotations: {}
+
+ingress:
+  enabled: false
+  className: nginx
+  annotations: {}
+  hosts:
+    - host: ""
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+configmap:
+  enabled: false
+  annotations: {}
+  data: {}
+
+secret:
+  enabled: false
+  type: Opaque
+  annotations: {}
+  stringData: {}
+  existingSecretName: ""
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+metrics:
+  enabled: true
+  path: /metrics
+  portName: http
+
+serviceMonitor:
+  enabled: false
+  namespace: ""
+  labels: {}
+  interval: 30s
+  scrapeTimeout: 10s
+  honorLabels: true
+  jobLabel: app.kubernetes.io/name
+  targetLabels:
+    - app.kubernetes.io/name
+    - app.kubernetes.io/instance
+    - app.kubernetes.io/part-of
+    - platform.example.io/environment
+  podTargetLabels:
+    - app.kubernetes.io/name
+    - app.kubernetes.io/instance
+
+rollout:
+  enabled: false
+  progressDeadlineAbort: true
+  rollbackWindow:
+    revisions: 3
+  strategy:
+    canary:
+      maxSurge: 25%
+      maxUnavailable: 0
+      scaleDownDelaySeconds: 30
+      abortScaleDownDelaySeconds: 30
+      steps:
+        - setWeight: 25
+        - pause:
+            duration: 60s
+        - setWeight: 50
+        - pause:
+            duration: 120s
+  analysis:
+    enabled: false
+    templates:
+      successRate: success-rate
+      latency: p95-latency
+      restartRate: restart-rate
+    stages:
+      - weight: 10
+        pauseSeconds: 60
+        includeRestartRate: false
+      - weight: 25
+        pauseSeconds: 120
+        includeRestartRate: true
+      - weight: 50
+        pauseSeconds: 180
+        includeRestartRate: true
+
+deployment:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 0
+
+env: []
+envFrom: []
+extraVolumes: []
+extraVolumeMounts: []
+topologySpreadConstraints: []
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsGroup: 10001
+  runAsNonRoot: true
+  runAsUser: 10001
+
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 15

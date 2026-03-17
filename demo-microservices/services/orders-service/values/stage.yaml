@@ -1,0 +1,44 @@
+image:
+  tag: "0.1.0-stage.2"
+
+replicaCount: 6
+
+podAnnotations:
+  platform.example.io/revision-token: "stage-2026-03-17-r1"
+
+resources:
+  requests:
+    cpu: 400m
+    memory: 384Mi
+  limits:
+    cpu: 1250m
+    memory: 1024Mi
+
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 2
+  failureThreshold: 8
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 30
+  periodSeconds: 20
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+configmap:
+  data:
+    LOG_LEVEL: info
+    DB_SSLMODE: require
+    UVICORN_WORKERS: "1"
+    UVICORN_KEEPALIVE_TIMEOUT: "20"
+    HTTP_TIMEOUT_SECONDS: "5"
+    HTTP_MAX_CONNECTIONS: "512"
+    HTTP_MAX_KEEPALIVE_CONNECTIONS: "128"
+    ORDER_HISTORY_LIMIT: "5000"

@@ -1,0 +1,26 @@
+name: secure-build
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  secure-ci:
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+    uses: ./.github/workflows/secure-ci-reusable.yml
+    with:
+      image_repository: ghcr.io/${{ github.repository_owner }}/payments-service
+      image_context: .
+      dockerfile: demo-microservices/services/payments-service/Dockerfile
+      image_tag: ${{ github.sha }}
+      registry: ghcr.io
+    secrets:
+      registry_username: ${{ github.actor }}
+      registry_password: ${{ github.token }}
+      cosign_private_key: ${{ secrets.COSIGN_PRIVATE_KEY }}
+      cosign_password: ${{ secrets.COSIGN_PASSWORD }}

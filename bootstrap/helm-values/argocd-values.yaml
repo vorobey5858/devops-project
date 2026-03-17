@@ -1,0 +1,20 @@
+configs:
+  params:
+    server.insecure: true
+server:
+  extraArgs:
+    - --insecure
+  service:
+    type: ClusterIP
+controller:
+  metrics:
+    enabled: true
+repoServer:
+  metrics:
+    enabled: true
+applicationSet:
+  enabled: true
+dex:
+  enabled: false
+notifications:
+  enabled: false

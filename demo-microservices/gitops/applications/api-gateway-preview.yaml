@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: api-gateway-preview
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: commerce-platform
+    platform.example.io/environment: preview
+spec:
+  project: platform
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: demo-preview
+  sources:
+    - repoURL: https://github.com/vorobey5858/devops-project.git
+      targetRevision: master
+      path: platform-core/templates/service-template
+      helm:
+        releaseName: api-gateway
+        valueFiles:
+          - $values/platform-core/templates/service-template/values-preview.yaml
+          - $values/demo-microservices/services/api-gateway/values/common.yaml
+          - $values/demo-microservices/services/api-gateway/values/preview.yaml
+    - repoURL: https://github.com/vorobey5858/devops-project.git
+      targetRevision: master
+      ref: values
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

@@ -1,0 +1,40 @@
+image:
+  tag: "0.1.0-stage.2"
+
+replicaCount: 4
+
+podAnnotations:
+  platform.example.io/revision-token: "stage-2026-03-17-r1"
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 128Mi
+  limits:
+    cpu: 750m
+    memory: 384Mi
+
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 2
+  failureThreshold: 6
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 20
+  periodSeconds: 20
+  timeoutSeconds: 3
+  failureThreshold: 6
+
+configmap:
+  data:
+    LOG_LEVEL: info
+    PROVIDER_MODE: dry-run
+    UVICORN_WORKERS: "1"
+    UVICORN_KEEPALIVE_TIMEOUT: "20"

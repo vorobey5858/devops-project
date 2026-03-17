@@ -1,0 +1,56 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-workload-resources
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: require-resources-for-containers
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+                - Deployment
+                - StatefulSet
+                - DaemonSet
+                - Job
+                - CronJob
+                - Rollout
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+                - kyverno
+                - argocd
+                - argo-rollouts
+                - monitoring
+                - cert-manager
+                - ingress-nginx
+                - vault
+                - external-secrets
+      validate:
+        message: "Containers must define cpu and memory requests and limits."
+        foreach:
+          - list: "request.object.spec.jobTemplate.spec.template.spec.containers || request.object.spec.template.spec.containers || request.object.spec.containers || `[]`"
+            pattern:
+              resources:
+                requests:
+                  cpu: "?*"
+                  memory: "?*"
+                limits:
+                  cpu: "?*"
+                  memory: "?*"
+          - list: "request.object.spec.jobTemplate.spec.template.spec.initContainers || request.object.spec.template.spec.initContainers || request.object.spec.initContainers || `[]`"
+            pattern:
+              resources:
+                requests:
+                  cpu: "?*"
+                  memory: "?*"
+                limits:
+                  cpu: "?*"
+                  memory: "?*"

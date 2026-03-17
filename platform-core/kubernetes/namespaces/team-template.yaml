@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: platform-team-example
+  labels:
+    app.kubernetes.io/part-of: commerce-platform
+    platform.example.io/tenant: demo
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: platform-team-example-quota
+  namespace: platform-team-example
+spec:
+  hard:
+    limits.cpu: "4"
+    limits.memory: 8Gi
+    requests.cpu: "2"
+    requests.memory: 4Gi
+    pods: "20"
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: platform-team-example-defaults
+  namespace: platform-team-example
+spec:
+  limits:
+    - default:
+        cpu: 500m
+        memory: 512Mi
+      defaultRequest:
+        cpu: 100m
+        memory: 128Mi
+      type: Container

@@ -1,0 +1,41 @@
+nameOverride: orders-service
+fullnameOverride: orders-service
+
+image:
+  repository: devops/orders-service
+
+containerPort: 8081
+
+service:
+  port: 8081
+
+commonLabels:
+  platform.example.io/service-tier: backend
+
+configmap:
+  enabled: true
+  data:
+    APP_NAME: orders-service
+    DB_HOST: orders-db-rw
+    DB_PORT: "5432"
+    PAYMENTS_BASE_URL: http://payments-service:8082
+
+secret:
+  enabled: true
+  stringData:
+    DB_USERNAME: orders
+    DB_PASSWORD: change-me
+
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 15
+  periodSeconds: 20

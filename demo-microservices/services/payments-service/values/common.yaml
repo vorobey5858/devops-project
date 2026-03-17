@@ -1,0 +1,40 @@
+nameOverride: payments-service
+fullnameOverride: payments-service
+
+image:
+  repository: devops/payments-service
+
+containerPort: 8082
+
+service:
+  port: 8082
+
+commonLabels:
+  platform.example.io/service-tier: backend
+
+configmap:
+  enabled: true
+  data:
+    APP_NAME: payments-service
+    PAYMENT_PROVIDER: stub
+    CALLBACK_QUEUE: payments-events
+
+secret:
+  enabled: true
+  stringData:
+    PROVIDER_API_KEY: replace-me
+    PROVIDER_API_SECRET: replace-me
+
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 15
+  periodSeconds: 20

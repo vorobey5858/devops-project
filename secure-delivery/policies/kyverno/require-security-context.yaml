@@ -1,0 +1,48 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-non-root-security-context
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: require-security-context-for-containers
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+                - Deployment
+                - StatefulSet
+                - DaemonSet
+                - Job
+                - CronJob
+                - Rollout
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+                - kyverno
+                - argocd
+                - argo-rollouts
+                - monitoring
+                - cert-manager
+                - ingress-nginx
+                - vault
+                - external-secrets
+      validate:
+        message: "Containers must run as non-root and disable privilege escalation."
+        foreach:
+          - list: "request.object.spec.jobTemplate.spec.template.spec.containers || request.object.spec.template.spec.containers || request.object.spec.containers || `[]`"
+            pattern:
+              securityContext:
+                runAsNonRoot: true
+                allowPrivilegeEscalation: false
+          - list: "request.object.spec.jobTemplate.spec.template.spec.initContainers || request.object.spec.template.spec.initContainers || request.object.spec.initContainers || `[]`"
+            pattern:
+              securityContext:
+                runAsNonRoot: true
+                allowPrivilegeEscalation: false

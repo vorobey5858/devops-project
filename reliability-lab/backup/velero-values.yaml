@@ -1,0 +1,32 @@
+configuration:
+  backupStorageLocation:
+    - name: default
+      provider: aws
+      bucket: platform-backups
+      default: true
+      config:
+        region: local
+        s3ForcePathStyle: "true"
+        s3Url: http://minio.minio.svc:9000
+  volumeSnapshotLocation:
+    - name: default
+      provider: aws
+      config:
+        region: local
+
+schedules:
+  stage-demo:
+    schedule: "*/15 * * * *"
+    template:
+      ttl: 72h
+      includedNamespaces:
+        - demo-stage
+  daily-platform:
+    schedule: "0 */6 * * *"
+    template:
+      ttl: 168h
+      includedNamespaces:
+        - demo-dev
+        - demo-preview
+        - demo-stage
+        - platform-system

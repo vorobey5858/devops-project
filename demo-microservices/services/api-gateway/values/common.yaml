@@ -1,0 +1,41 @@
+nameOverride: api-gateway
+fullnameOverride: api-gateway
+
+image:
+  repository: devops/api-gateway
+
+containerPort: 8080
+
+service:
+  port: 8080
+
+commonLabels:
+  platform.example.io/service-tier: edge
+
+configmap:
+  enabled: true
+  data:
+    APP_NAME: api-gateway
+    LOG_FORMAT: json
+    ORDERS_BASE_URL: http://orders-service:8081
+    PAYMENTS_BASE_URL: http://payments-service:8082
+
+secret:
+  enabled: true
+  stringData:
+    JWT_SHARED_SECRET: change-me
+    UPSTREAM_API_TOKEN: replace-me
+
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: http
+  initialDelaySeconds: 3
+  periodSeconds: 10
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 15

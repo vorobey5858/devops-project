@@ -1,0 +1,25 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: api-gateway-to-payments-latency
+  namespace: demo-stage
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces:
+      - demo-stage
+    labelSelectors:
+      app.kubernetes.io/name: api-gateway
+  target:
+    mode: all
+    selector:
+      namespaces:
+        - demo-stage
+      labelSelectors:
+        app.kubernetes.io/name: payments-service
+  delay:
+    latency: "250ms"
+    jitter: "40ms"
+    correlation: "50"
+  duration: "5m"

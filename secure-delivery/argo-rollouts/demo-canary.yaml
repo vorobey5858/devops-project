@@ -1,0 +1,110 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: payments-service
+  namespace: demo-stage
+  labels:
+    app.kubernetes.io/name: payments-service
+    app.kubernetes.io/part-of: commerce-platform
+spec:
+  replicas: 3
+  revisionHistoryLimit: 3
+  progressDeadlineSeconds: 600
+  progressDeadlineAbort: true
+  rollbackWindow:
+    revisions: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: payments-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: payments-service
+        app.kubernetes.io/part-of: commerce-platform
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "8082"
+    spec:
+      containers:
+        - name: app
+          image: devops/payments-service:0.1.0-stage.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8082
+              name: http
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 750m
+              memory: 768Mi
+  strategy:
+    canary:
+      maxSurge: 1
+      maxUnavailable: 0
+      scaleDownDelaySeconds: 30
+      abortScaleDownDelaySeconds: 30
+      steps:
+        - setWeight: 5
+        - pause:
+            duration: 2m
+        - analysis:
+            templates:
+              - templateName: success-rate
+              - templateName: p95-latency
+            args:
+              - name: namespace
+                value: demo-stage
+              - name: service-name
+                value: payments-service
+              - name: rollout-name
+                value: payments-service
+        - setWeight: 25
+        - pause:
+            duration: 5m
+        - analysis:
+            templates:
+              - templateName: success-rate
+              - templateName: p95-latency
+              - templateName: restart-rate
+            args:
+              - name: namespace
+                value: demo-stage
+              - name: service-name
+                value: payments-service
+              - name: rollout-name
+                value: payments-service
+        - setWeight: 50
+        - pause:
+            duration: 10m
+        - analysis:
+            templates:
+              - templateName: success-rate
+              - templateName: p95-latency
+              - templateName: restart-rate
+            args:
+              - name: namespace
+                value: demo-stage
+              - name: service-name
+                value: payments-service
+              - name: rollout-name
+                value: payments-service
+        - setWeight: 100

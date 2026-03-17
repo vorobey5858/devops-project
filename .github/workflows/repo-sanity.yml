@@ -1,0 +1,158 @@
+name: repo-sanity
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+      - "bootstrap/**"
+      - "demo-microservices/**"
+      - "secure-delivery/**"
+      - "scripts/**"
+      - "platform-core/templates/service-template/**"
+      - "reliability-lab/**"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/**"
+      - "bootstrap/**"
+      - "demo-microservices/**"
+      - "secure-delivery/**"
+      - "scripts/**"
+      - "platform-core/templates/service-template/**"
+      - "reliability-lab/**"
+  workflow_dispatch:
+
+jobs:
+  check-structure:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure key repository files exist
+        run: |
+          test -f README.md
+          test -f .github/workflows/repo-sanity.yml
+          test -f .github/workflows/secure-ci-reusable.yml
+          test -f secure-delivery/README.md
+          test -f secure-delivery/ci/github-actions-secure-template.yml
+          test -f secure-delivery/argo-rollouts/analysis-templates.yaml
+          test -f secure-delivery/argo-rollouts/demo-canary.yaml
+          test -f secure-delivery/docs/supply-chain.md
+          test -f secure-delivery/docs/threat-model.md
+          test -f secure-delivery/docs/rollback-strategy.md
+          test -f secure-delivery/policies/kyverno/require-signed-images.yaml
+          test -f secure-delivery/policies/kyverno/disallow-latest-tag.yaml
+          test -f secure-delivery/policies/kyverno/require-resources.yaml
+          test -f secure-delivery/policies/kyverno/require-security-context.yaml
+          test -f demo-microservices/services/api-gateway/app/main.py
+          test -f demo-microservices/services/orders-service/app/main.py
+          test -f demo-microservices/services/payments-service/app/main.py
+          test -f scripts/validation/validate-contracts.py
+
+  validate-yaml:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install pyyaml
+
+      - name: Parse workflow and secure-delivery YAML
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import yaml
+
+          files = []
+          for root in (
+              Path(".github/workflows"),
+              Path("secure-delivery"),
+              Path("platform-core/kubernetes"),
+              Path("demo-microservices/gitops"),
+              Path("reliability-lab"),
+              Path("bootstrap"),
+          ):
+            files.extend(sorted(root.rglob("*.yml")))
+            files.extend(sorted(root.rglob("*.yaml")))
+
+          errors = []
+          for path in files:
+            try:
+              with path.open("r", encoding="utf-8") as handle:
+                list(yaml.safe_load_all(handle))
+            except Exception as exc:
+              errors.append(f"{path}: {exc}")
+
+          if errors:
+            raise SystemExit("\n".join(errors))
+
+          print(f"Validated {len(files)} YAML files.")
+          PY
+
+  validate-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install pyyaml
+
+      - name: Validate repository contracts
+        run: python scripts/validation/validate-contracts.py
+
+  verify-platform-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install pyyaml
+
+      - name: Verify service-template contract used by secure-delivery
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import yaml
+
+          values_path = Path("platform-core/templates/service-template/values.yaml")
+          deployment_path = Path("platform-core/templates/service-template/templates/deployment.yaml")
+
+          values = yaml.safe_load(values_path.read_text(encoding="utf-8"))
+          required_keys = ["resources", "securityContext", "readinessProbe", "livenessProbe", "rollout"]
+          missing = [key for key in required_keys if key not in values]
+          if missing:
+            raise SystemExit(f"Missing service-template values keys: {missing}")
+
+          deployment = deployment_path.read_text(encoding="utf-8")
+          required_markers = [
+            "app.kubernetes.io/part-of",
+            "prometheus.io/scrape",
+            "securityContext",
+            "resources",
+          ]
+          absent = [marker for marker in required_markers if marker not in deployment]
+          if absent:
+            raise SystemExit(f"Missing deployment template markers: {absent}")
+
+          print("platform-core service-template contract matches secure-delivery assumptions.")
+          PY

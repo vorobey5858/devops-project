@@ -1,0 +1,89 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: success-rate
+  namespace: demo-stage
+spec:
+  args:
+    - name: namespace
+    - name: service-name
+    - name: rollout-name
+  metrics:
+    - name: success-rate
+      interval: 1m
+      count: 5
+      failureLimit: 1
+      successCondition: result[0] >= 0.98
+      failureCondition: result[0] < 0.95
+      provider:
+        prometheus:
+          address: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+          query: |
+            sum(
+              rate(http_requests_total{namespace="{{args.namespace}}",service="{{args.service-name}}",status!~"5.."}[2m])
+            ) /
+            clamp_min(
+              sum(
+                rate(http_requests_total{namespace="{{args.namespace}}",service="{{args.service-name}}"}[2m])
+              ),
+              0.001
+            )
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: p95-latency
+  namespace: demo-stage
+spec:
+  args:
+    - name: namespace
+    - name: service-name
+    - name: rollout-name
+  metrics:
+    - name: p95-latency
+      interval: 1m
+      count: 5
+      failureLimit: 1
+      successCondition: result[0] <= 0.4
+      failureCondition: result[0] > 0.5
+      provider:
+        prometheus:
+          address: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+          query: |
+            histogram_quantile(
+              0.95,
+              sum by (le) (
+                rate(http_request_duration_seconds_bucket{namespace="{{args.namespace}}",service="{{args.service-name}}"}[5m])
+              )
+            )
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: restart-rate
+  namespace: demo-stage
+spec:
+  args:
+    - name: namespace
+    - name: service-name
+    - name: rollout-name
+  metrics:
+    - name: restart-rate
+      interval: 1m
+      count: 3
+      failureLimit: 1
+      successCondition: result[0] == 0
+      failureCondition: result[0] > 0
+      provider:
+        prometheus:
+          address: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+          query: |
+            sum(
+              increase(
+                kube_pod_container_status_restarts_total{
+                  namespace="{{args.namespace}}",
+                  container="app",
+                  pod=~"{{args.rollout-name}}-.*"
+                }[5m]
+              )
+            )

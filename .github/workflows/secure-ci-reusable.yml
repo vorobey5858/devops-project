@@ -1,0 +1,287 @@
+name: secure-ci-reusable
+
+on:
+  workflow_call:
+    inputs:
+      image_repository:
+        description: OCI image repository, for example ghcr.io/org/service
+        required: true
+        type: string
+      image_context:
+        description: Docker build context
+        required: false
+        default: .
+        type: string
+      dockerfile:
+        description: Dockerfile path relative to the repository root
+        required: false
+        default: Dockerfile
+        type: string
+      image_tag:
+        description: Immutable image tag. Defaults to the commit SHA.
+        required: false
+        default: ""
+        type: string
+      registry:
+        description: OCI registry hostname
+        required: false
+        default: ghcr.io
+        type: string
+    secrets:
+      registry_username:
+        required: true
+      registry_password:
+        required: true
+      cosign_private_key:
+        required: true
+      cosign_password:
+        required: false
+  workflow_dispatch:
+    inputs:
+      image_repository:
+        description: OCI image repository, for example ghcr.io/org/service
+        required: true
+        default: ghcr.io/vorobey5858/payments-service
+        type: string
+      image_context:
+        description: Docker build context
+        required: false
+        default: .
+        type: string
+      dockerfile:
+        description: Dockerfile path relative to the repository root
+        required: false
+        default: Dockerfile
+        type: string
+      image_tag:
+        description: Immutable image tag. Defaults to the commit SHA.
+        required: false
+        default: ""
+        type: string
+      registry:
+        description: OCI registry hostname
+        required: false
+        default: ghcr.io
+        type: string
+
+jobs:
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prepare reports directory
+        run: mkdir -p reports
+
+      - id: gitleaks
+        name: Run Gitleaks
+        continue-on-error: true
+        uses: DariuszPorowski/github-action-gitleaks@v2
+        with:
+          report_format: sarif
+
+      - name: Upload Gitleaks report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-report
+          path: ${{ steps.gitleaks.outputs.report }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish Gitleaks SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ steps.gitleaks.outputs.report }}
+          category: gitleaks
+
+      - name: Enforce secret scan gate
+        if: steps.gitleaks.outcome == 'failure'
+        run: |
+          echo "Gitleaks detected one or more secrets."
+          exit 1
+
+  sast:
+    name: SAST
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Prepare reports directory
+        run: mkdir -p reports
+
+      - id: semgrep
+        name: Run Semgrep
+        continue-on-error: true
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install semgrep
+          semgrep scan --config auto --error --metrics=off --json --output reports/semgrep.json .
+
+      - name: Upload Semgrep report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-report
+          path: reports/semgrep.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Enforce SAST gate
+        if: steps.semgrep.outcome == 'failure'
+        run: |
+          echo "Semgrep reported one or more findings."
+          exit 1
+
+  build-scan-sign:
+    name: Build, scan, SBOM, and sign
+    runs-on: ubuntu-latest
+    needs:
+      - secret-scan
+      - sast
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare reports directory
+        run: mkdir -p reports
+
+      - name: Set image metadata
+        id: image
+        shell: bash
+        run: |
+          tag="${{ inputs.image_tag }}"
+          if [ -z "$tag" ]; then
+            tag="${GITHUB_SHA}"
+          fi
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+          echo "ref=${{ inputs.image_repository }}:${tag}" >> "${GITHUB_OUTPUT}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image locally
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.image_context }}
+          file: ${{ inputs.dockerfile }}
+          load: true
+          provenance: false
+          sbom: false
+          tags: ${{ steps.image.outputs.ref }}
+
+      - id: trivy
+        name: Run Trivy image scan
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ steps.image.outputs.ref }}
+          format: sarif
+          output: reports/trivy.sarif
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Generate SBOM with Syft
+        if: steps.trivy.outcome == 'success'
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.image.outputs.ref }}
+          format: spdx-json
+          output-file: reports/sbom.spdx.json
+
+      - name: Log in to OCI registry
+        if: steps.trivy.outcome == 'success'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ inputs.registry }}
+          username: ${{ secrets.registry_username || github.actor }}
+          password: ${{ secrets.registry_password || github.token }}
+
+      - name: Push scanned image
+        id: build
+        if: steps.trivy.outcome == 'success'
+        shell: bash
+        run: |
+          docker push "${{ steps.image.outputs.ref }}"
+          digest="$(docker buildx imagetools inspect "${{ steps.image.outputs.ref }}" --format '{{json .Manifest.Digest}}' | tr -d '\"')"
+          echo "digest=${digest}" >> "${GITHUB_OUTPUT}"
+
+      - name: Install Cosign
+        if: steps.trivy.outcome == 'success'
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign image
+        if: steps.trivy.outcome == 'success'
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.cosign_private_key || secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.cosign_password || secrets.COSIGN_PASSWORD }}
+        run: |
+          cosign sign --yes --key env://COSIGN_PRIVATE_KEY "${{ inputs.image_repository }}@${{ steps.build.outputs.digest }}"
+
+      - name: Attest SBOM
+        if: steps.trivy.outcome == 'success'
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.cosign_private_key || secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.cosign_password || secrets.COSIGN_PASSWORD }}
+        run: |
+          cosign attest --yes --key env://COSIGN_PRIVATE_KEY --type spdxjson --predicate reports/sbom.spdx.json "${{ inputs.image_repository }}@${{ steps.build.outputs.digest }}"
+
+      - name: Write release metadata
+        if: steps.trivy.outcome == 'success'
+        shell: bash
+        run: |
+          cat > reports/release-metadata.json <<EOF
+          {
+            "image_repository": "${{ inputs.image_repository }}",
+            "image_tag": "${{ steps.image.outputs.tag }}",
+            "image_ref": "${{ steps.image.outputs.ref }}",
+            "image_digest": "${{ steps.build.outputs.digest }}",
+            "signed_image_ref": "${{ inputs.image_repository }}@${{ steps.build.outputs.digest }}",
+            "sbom_path": "reports/sbom.spdx.json",
+            "generated_at_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: reports/trivy.sarif
+          category: trivy-image
+
+      - name: Upload supply-chain reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: supply-chain-reports
+          path: reports
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Enforce image scan gate
+        if: steps.trivy.outcome == 'failure'
+        run: |
+          echo "Trivy reported one or more HIGH or CRITICAL vulnerabilities."
+          exit 1

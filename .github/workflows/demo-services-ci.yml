@@ -1,0 +1,70 @@
+name: demo-services-ci
+
+on:
+  pull_request:
+    paths:
+      - "demo-microservices/**"
+      - "scripts/demo/**"
+      - "scripts/validation/**"
+      - "platform-core/templates/service-template/**"
+      - ".github/workflows/demo-services-ci.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "demo-microservices/**"
+      - "scripts/demo/**"
+      - "scripts/validation/**"
+      - "platform-core/templates/service-template/**"
+      - ".github/workflows/demo-services-ci.yml"
+  workflow_dispatch:
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install -r demo-microservices/requirements-dev.txt
+
+      - name: Run service unit tests
+        run: pytest demo-microservices/tests
+
+  contract-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install pyyaml
+
+      - name: Validate repository contracts
+        run: python scripts/validation/validate-contracts.py
+
+  docker-build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - api-gateway
+          - orders-service
+          - payments-service
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build service image
+        run: docker build -f demo-microservices/services/${{ matrix.service }}/Dockerfile -t local/${{ matrix.service }}:ci .

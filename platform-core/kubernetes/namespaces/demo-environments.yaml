@@ -1,0 +1,107 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo-dev
+  labels:
+    app.kubernetes.io/part-of: commerce-platform
+    platform.example.io/environment: dev
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: demo-dev-quota
+  namespace: demo-dev
+spec:
+  hard:
+    limits.cpu: "2"
+    limits.memory: 4Gi
+    requests.cpu: "1"
+    requests.memory: 2Gi
+    pods: "10"
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: demo-dev-defaults
+  namespace: demo-dev
+spec:
+  limits:
+    - default:
+        cpu: 250m
+        memory: 256Mi
+      defaultRequest:
+        cpu: 100m
+        memory: 128Mi
+      type: Container
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo-preview
+  labels:
+    app.kubernetes.io/part-of: commerce-platform
+    platform.example.io/environment: preview
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: demo-preview-quota
+  namespace: demo-preview
+spec:
+  hard:
+    limits.cpu: "3"
+    limits.memory: 4Gi
+    requests.cpu: "1"
+    requests.memory: 2Gi
+    pods: "10"
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: demo-preview-defaults
+  namespace: demo-preview
+spec:
+  limits:
+    - default:
+        cpu: 400m
+        memory: 384Mi
+      defaultRequest:
+        cpu: 150m
+        memory: 192Mi
+      type: Container
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo-stage
+  labels:
+    app.kubernetes.io/part-of: commerce-platform
+    platform.example.io/environment: stage
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: demo-stage-quota
+  namespace: demo-stage
+spec:
+  hard:
+    limits.cpu: "16"
+    limits.memory: 14Gi
+    requests.cpu: "6"
+    requests.memory: 6Gi
+    pods: "30"
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: demo-stage-defaults
+  namespace: demo-stage
+spec:
+  limits:
+    - default:
+        cpu: 750m
+        memory: 768Mi
+      defaultRequest:
+        cpu: 250m
+        memory: 256Mi
+      type: Container

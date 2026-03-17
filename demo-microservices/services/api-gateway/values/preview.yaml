@@ -1,0 +1,14 @@
+image:
+  tag: "0.1.0-preview.1"
+
+configmap:
+  data:
+    LOG_LEVEL: info
+
+ingress:
+  enabled: true
+  hosts:
+    - host: api-gateway.preview.platform.local
+      paths:
+        - path: /
+          pathType: Prefix

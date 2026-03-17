@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: payments-service-stage
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: commerce-platform
+    platform.example.io/environment: stage
+spec:
+  project: platform
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: demo-stage
+  sources:
+    - repoURL: https://github.com/vorobey5858/devops-project.git
+      targetRevision: master
+      path: platform-core/templates/service-template
+      helm:
+        releaseName: payments-service
+        valueFiles:
+          - $values/platform-core/templates/service-template/values-stage.yaml
+          - $values/demo-microservices/services/payments-service/values/common.yaml
+          - $values/demo-microservices/services/payments-service/values/stage.yaml
+    - repoURL: https://github.com/vorobey5858/devops-project.git
+      targetRevision: master
+      ref: values
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

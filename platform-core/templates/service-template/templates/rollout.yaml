@@ -1,0 +1,50 @@
+{{- if .Values.rollout.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: {{ include "service-template.fullname" . }}
+  labels:
+    {{- include "service-template.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
+  progressDeadlineSeconds: {{ .Values.progressDeadlineSeconds }}
+  progressDeadlineAbort: {{ .Values.rollout.progressDeadlineAbort }}
+  rollbackWindow:
+    revisions: {{ .Values.rollout.rollbackWindow.revisions }}
+  minReadySeconds: {{ .Values.minReadySeconds }}
+  selector:
+    matchLabels:
+      {{- include "service-template.selectorLabels" . | nindent 6 }}
+  template:
+    {{- include "service-template.podTemplate" . | nindent 4 }}
+  strategy:
+    canary:
+      maxSurge: {{ .Values.rollout.strategy.canary.maxSurge | quote }}
+      maxUnavailable: {{ .Values.rollout.strategy.canary.maxUnavailable | quote }}
+      steps:
+        {{- if .Values.rollout.analysis.enabled }}
+        {{- range $stage := .Values.rollout.analysis.stages }}
+        - setWeight: {{ $stage.weight }}
+        - pause:
+            duration: {{ printf "%ss" ($stage.pauseSeconds | toString) | quote }}
+        - analysis:
+            templates:
+              - templateName: {{ $.Values.rollout.analysis.templates.successRate }}
+              - templateName: {{ $.Values.rollout.analysis.templates.latency }}
+              {{- if $stage.includeRestartRate }}
+              - templateName: {{ $.Values.rollout.analysis.templates.restartRate }}
+              {{- end }}
+            args:
+              - name: namespace
+                value: {{ $.Release.Namespace }}
+              - name: service-name
+                value: {{ include "service-template.name" $ }}
+              - name: rollout-name
+                value: {{ include "service-template.fullname" $ }}
+        {{- end }}
+        - setWeight: 100
+        {{- else }}
+        {{- toYaml .Values.rollout.strategy.canary.steps | nindent 8 }}
+        {{- end }}
+{{- end }}

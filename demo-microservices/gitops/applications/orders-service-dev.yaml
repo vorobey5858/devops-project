@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: orders-service-dev
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: commerce-platform
+    platform.example.io/environment: dev
+spec:
+  project: platform
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: demo-dev
+  sources:
+    - repoURL: https://github.com/vorobey5858/devops-project.git
+      targetRevision: master
+      path: platform-core/templates/service-template
+      helm:
+        releaseName: orders-service
+        valueFiles:
+          - $values/platform-core/templates/service-template/values-dev.yaml
+          - $values/demo-microservices/services/orders-service/values/common.yaml
+          - $values/demo-microservices/services/orders-service/values/dev.yaml
+    - repoURL: https://github.com/vorobey5858/devops-project.git
+      targetRevision: master
+      ref: values
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
