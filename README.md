@@ -40,13 +40,3 @@ sh ./scripts/demo/build-images.sh stage
 5. Prometheus отдаёт метрики для анализа, а при деградации срабатывает rollback.
 6. Те же сигналы используются в chaos-сценариях, runbook-ах и DR-проверках.
 
-## Куда смотреть дальше
-
-- [`bootstrap/README.md`](/c:/Users/struz/OneDrive/Документы/devops/bootstrap/README.md)
-- [`docs-architecture/unified-architecture.md`](/c:/Users/struz/OneDrive/Документы/devops/docs-architecture/unified-architecture.md)
-- [`docs-architecture/repository-map.md`](/c:/Users/struz/OneDrive/Документы/devops/docs-architecture/repository-map.md)
-- [`docs-architecture/demo-checklist.md`](/c:/Users/struz/OneDrive/Документы/devops/docs-architecture/demo-checklist.md)
-- [`docs-architecture/decision-log.md`](/c:/Users/struz/OneDrive/Документы/devops/docs-architecture/decision-log.md)
-- [`platform-core/docs/architecture.md`](/c:/Users/struz/OneDrive/Документы/devops/platform-core/docs/architecture.md)
-- [`secure-delivery/docs/supply-chain.md`](/c:/Users/struz/OneDrive/Документы/devops/secure-delivery/docs/supply-chain.md)
-- [`reliability-lab/docs/dr-plan.md`](/c:/Users/struz/OneDrive/Документы/devops/reliability-lab/docs/dr-plan.md)
