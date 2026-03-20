@@ -21,10 +21,8 @@ configmap:
     PAYMENTS_BASE_URL: http://payments-service:8082
 
 secret:
-  enabled: true
-  stringData:
-    JWT_SHARED_SECRET: change-me
-    UPSTREAM_API_TOKEN: replace-me
+  enabled: false
+  existingSecretName: api-gateway-secrets
 
 readinessProbe:
   httpGet:

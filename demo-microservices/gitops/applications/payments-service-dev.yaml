@@ -1,8 +1,10 @@
-apiVersion: argoproj.io/v1alpha1
+﻿apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: payments-service-dev
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
   labels:
     app.kubernetes.io/part-of: commerce-platform
     platform.example.io/environment: dev
@@ -13,7 +15,7 @@ spec:
     namespace: demo-dev
   sources:
     - repoURL: https://github.com/vorobey5858/devops-project.git
-      targetRevision: master
+      targetRevision: refs/heads/main
       path: platform-core/templates/service-template
       helm:
         releaseName: payments-service
@@ -22,7 +24,7 @@ spec:
           - $values/demo-microservices/services/payments-service/values/common.yaml
           - $values/demo-microservices/services/payments-service/values/dev.yaml
     - repoURL: https://github.com/vorobey5858/devops-project.git
-      targetRevision: master
+      targetRevision: refs/heads/main
       ref: values
   syncPolicy:
     automated:

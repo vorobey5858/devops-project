@@ -32,6 +32,24 @@
 - стартовые policy и analysis templates
 - ingress и стартовый дашборд для Grafana и Prometheus
 
+## Как обрабатываются локальные secrets
+
+- `bootstrap-local.ps1` не берёт пароли и токены из git-tracked values-файлов.
+- Для Grafana создаётся secret `monitoring/grafana-admin-credentials`.
+- Для demo-сервисов создаются `api-gateway-secrets`, `orders-service-secrets` и `payments-service-secrets` в `demo-dev`, `demo-preview` и `demo-stage`.
+- Если переменные окружения не заданы, скрипт генерирует значения сам и сохраняет их в `.secrets/*.txt`.
+- Каталог `.secrets/` добавлен в `.gitignore`, поэтому локальные значения не попадают в коммиты.
+- Для GitOps/Vault-ready стендов тот же naming-contract описан через `SecretStore` и `ExternalSecret` manifests в `platform-core/kubernetes/secrets/demo-*/external-secrets.yaml`.
+
+Поддерживаемые переменные окружения:
+
+- `GRAFANA_ADMIN_PASSWORD`
+- `API_GATEWAY_JWT_SHARED_SECRET`
+- `API_GATEWAY_UPSTREAM_API_TOKEN`
+- `ORDERS_DB_PASSWORD`
+- `PAYMENTS_PROVIDER_API_KEY`
+- `PAYMENTS_PROVIDER_API_SECRET`
+
 ## Базовый сценарий
 
 ```bash
@@ -56,5 +74,6 @@ sh ./scripts/demo/build-images.sh stage
 ## Ограничения
 
 - `require-signed-images` не включается по умолчанию в локальном сценарии
-- `CloudNativePG`, `Velero`, `Vault` и `External Secrets` остаются отдельным расширением
+- `CloudNativePG` и `Velero` остаются отдельным расширением
+- локальный bootstrap не устанавливает `Vault` и `External Secrets Operator`, но GitOps baseline для них уже описан в `platform-core/kubernetes/secrets/`
 - если текущая ветка ещё не опубликована в remote, GitOps-часть лучше запускать с `-SkipGitOps`

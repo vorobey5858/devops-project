@@ -20,10 +20,8 @@ configmap:
     CALLBACK_QUEUE: payments-events
 
 secret:
-  enabled: true
-  stringData:
-    PROVIDER_API_KEY: replace-me
-    PROVIDER_API_SECRET: replace-me
+  enabled: false
+  existingSecretName: payments-service-secrets
 
 readinessProbe:
   httpGet:

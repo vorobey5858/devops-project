@@ -31,6 +31,9 @@ sh ./scripts/demo/build-images.sh stage
 
 Нужны `k3s`, `kubectl`, `helm` и локальный OCI-сборщик вроде `Docker`.
 
+`bootstrap-local.ps1` создает локальные Kubernetes secrets вне git и сохраняет сгенерированные значения в `.secrets/`. Например, пароль Grafana хранится в `.secrets/grafana-admin-password.txt`, а не в values-файле.
+Для GitOps/Vault-ready окружений целевой baseline лежит в `platform-core/kubernetes/secrets/demo-*/external-secrets.yaml`: сначала синхронизируются namespaces, затем secret applications, потом сами сервисы.
+
 ## Как проходит демо
 
 1. Сервис живёт в `demo-microservices/services/*` и использует общий шаблон из `platform-core`.
@@ -39,4 +42,3 @@ sh ./scripts/demo/build-images.sh stage
 4. В `demo-stage` сервис выкатывается через `Argo Rollouts`.
 5. Prometheus отдаёт метрики для анализа, а при деградации срабатывает rollback.
 6. Те же сигналы используются в chaos-сценариях, runbook-ах и DR-проверках.
-

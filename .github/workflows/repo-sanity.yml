@@ -9,6 +9,7 @@ on:
       - "secure-delivery/**"
       - "scripts/**"
       - "platform-core/templates/service-template/**"
+      - "platform-core/kubernetes/**"
       - "reliability-lab/**"
   push:
     branches:
@@ -20,6 +21,7 @@ on:
       - "secure-delivery/**"
       - "scripts/**"
       - "platform-core/templates/service-template/**"
+      - "platform-core/kubernetes/**"
       - "reliability-lab/**"
   workflow_dispatch:
 
@@ -49,6 +51,8 @@ jobs:
           test -f demo-microservices/services/api-gateway/app/main.py
           test -f demo-microservices/services/orders-service/app/main.py
           test -f demo-microservices/services/payments-service/app/main.py
+          test -f demo-microservices/gitops/applications/demo-stage-secrets.yaml
+          test -f platform-core/kubernetes/secrets/demo-stage/external-secrets.yaml
           test -f scripts/validation/validate-contracts.py
 
   validate-yaml:

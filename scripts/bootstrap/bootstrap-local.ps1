@@ -13,6 +13,7 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $bootstrapRoot = Join-Path $repoRoot "bootstrap"
+$localSecretsRoot = Join-Path $repoRoot ".secrets"
 
 if ($KubeconfigPath) {
   $env:KUBECONFIG = (Resolve-Path $KubeconfigPath).Path
@@ -23,6 +24,14 @@ function Assert-Command {
 
   if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
     throw "Required command '$Name' is not installed or is not available in PATH."
+  }
+}
+
+function Ensure-Directory {
+  param([string]$Path)
+
+  if (-not (Test-Path $Path)) {
+    $null = New-Item -ItemType Directory -Path $Path -Force
   }
 }
 
@@ -46,6 +55,107 @@ function Ensure-Namespace {
   $null = & kubectl get namespace $Name 2>$null
   if ($LASTEXITCODE -ne 0) {
     Invoke-CommandChecked "kubectl" @("create", "namespace", $Name)
+  }
+}
+
+function New-RandomSecretValue {
+  param([int]$ByteCount = 24)
+
+  $buffer = New-Object byte[] $ByteCount
+  [System.Security.Cryptography.RandomNumberGenerator]::Fill($buffer)
+  return [Convert]::ToHexString($buffer).ToLowerInvariant()
+}
+
+function Get-LocalSecretValue {
+  param(
+    [string]$FileName,
+    [string]$EnvironmentVariable,
+    [int]$ByteCount = 24
+  )
+
+  Ensure-Directory -Path $localSecretsRoot
+
+  $environmentValue = [Environment]::GetEnvironmentVariable($EnvironmentVariable)
+  if (-not [string]::IsNullOrWhiteSpace($environmentValue)) {
+    return $environmentValue.Trim()
+  }
+
+  $path = Join-Path $localSecretsRoot $FileName
+  if (Test-Path $path) {
+    $existingValue = (Get-Content -Raw $path).Trim()
+    if (-not [string]::IsNullOrWhiteSpace($existingValue)) {
+      return $existingValue
+    }
+  }
+
+  $generatedValue = New-RandomSecretValue -ByteCount $ByteCount
+  Set-Content -Path $path -Value $generatedValue -NoNewline
+  Write-Host "Generated local secret at $path"
+  return $generatedValue
+}
+
+function Apply-GenericSecret {
+  param(
+    [string]$Namespace,
+    [string]$Name,
+    [hashtable]$StringData
+  )
+
+  Ensure-Namespace -Name $Namespace
+
+  $arguments = @(
+    "create", "secret", "generic", $Name,
+    "--namespace", $Namespace,
+    "--dry-run=client",
+    "-o", "yaml"
+  )
+
+  foreach ($entry in $StringData.GetEnumerator()) {
+    $arguments += "--from-literal=$($entry.Key)=$($entry.Value)"
+  }
+
+  Write-Host ">" "kubectl" ($arguments -join " ")
+  $manifest = & kubectl @arguments
+
+  if ($LASTEXITCODE -ne 0) {
+    throw "Command failed: kubectl $($arguments -join ' ')"
+  }
+
+  $manifest | & kubectl apply -f -
+
+  if ($LASTEXITCODE -ne 0) {
+    throw "Command failed: kubectl apply -f -"
+  }
+}
+
+function Ensure-GrafanaAdminSecret {
+  $password = Get-LocalSecretValue -FileName "grafana-admin-password.txt" -EnvironmentVariable "GRAFANA_ADMIN_PASSWORD"
+  Apply-GenericSecret -Namespace "monitoring" -Name "grafana-admin-credentials" -StringData @{
+    "admin-user" = "admin"
+    "admin-password" = $password
+  }
+}
+
+function Ensure-DemoServiceSecrets {
+  $apiGatewaySecret = @{
+    "JWT_SHARED_SECRET" = Get-LocalSecretValue -FileName "api-gateway-jwt-shared-secret.txt" -EnvironmentVariable "API_GATEWAY_JWT_SHARED_SECRET"
+    "UPSTREAM_API_TOKEN" = Get-LocalSecretValue -FileName "api-gateway-upstream-api-token.txt" -EnvironmentVariable "API_GATEWAY_UPSTREAM_API_TOKEN"
+  }
+
+  $ordersSecret = @{
+    "DB_USERNAME" = "orders"
+    "DB_PASSWORD" = Get-LocalSecretValue -FileName "orders-db-password.txt" -EnvironmentVariable "ORDERS_DB_PASSWORD"
+  }
+
+  $paymentsSecret = @{
+    "PROVIDER_API_KEY" = Get-LocalSecretValue -FileName "payments-provider-api-key.txt" -EnvironmentVariable "PAYMENTS_PROVIDER_API_KEY"
+    "PROVIDER_API_SECRET" = Get-LocalSecretValue -FileName "payments-provider-api-secret.txt" -EnvironmentVariable "PAYMENTS_PROVIDER_API_SECRET"
+  }
+
+  foreach ($namespace in @("demo-dev", "demo-preview", "demo-stage")) {
+    Apply-GenericSecret -Namespace $namespace -Name "api-gateway-secrets" -StringData $apiGatewaySecret
+    Apply-GenericSecret -Namespace $namespace -Name "orders-service-secrets" -StringData $ordersSecret
+    Apply-GenericSecret -Namespace $namespace -Name "payments-service-secrets" -StringData $paymentsSecret
   }
 }
 
@@ -134,6 +244,7 @@ if (-not $SkipFoundation) {
 }
 
 if (-not $SkipObservability) {
+  Ensure-GrafanaAdminSecret
   Install-HelmRelease -ReleaseName "kube-prometheus-stack" -Chart "prometheus-community/kube-prometheus-stack" -Namespace "monitoring" -ValuesFile (Join-Path $bootstrapRoot "helm-values\kube-prometheus-stack-values.yaml")
   Wait-Deployments -Namespace "monitoring"
 
@@ -155,6 +266,7 @@ if (-not $SkipSecurityBaseline) {
 
 if (-not $SkipGitOps) {
   Apply-Manifest -RelativePath "platform-core\kubernetes\namespaces\demo-environments.yaml"
+  Ensure-DemoServiceSecrets
   if (-not $SkipSecurityBaseline) {
     Apply-Manifest -RelativePath "secure-delivery\argo-rollouts\analysis-templates.yaml"
   }

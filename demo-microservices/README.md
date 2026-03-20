@@ -21,17 +21,20 @@
 
 ```powershell
 python -m pip install -r demo-microservices/requirements-dev.txt
-pytest demo-microservices/tests
+python -m pytest demo-microservices/tests
 .\scripts\demo\build-images.ps1 -Environment dev
 .\scripts\demo\build-images.ps1 -Environment stage
 ```
 
 ## Как это связано с GitOps
 
-Сначала применяется `platform-core/kubernetes/argocd/project-platform.yaml`, затем `platform-core/kubernetes/argocd/app-demo-services.yaml`. После этого ArgoCD подхватывает `demo-environments` и service applications из `gitops/applications/`.
+Сначала применяется `platform-core/kubernetes/argocd/project-platform.yaml`, затем `platform-core/kubernetes/argocd/app-demo-services.yaml`. После этого ArgoCD подхватывает `demo-environments`, `demo-*-secrets` и service applications из `gitops/applications/`.
 
 ## Допущения
 
 - application manifests указывают на `https://github.com/vorobey5858/devops-project.git`
 - локальный runtime использует образы вида `devops/<service>` и неизменяемые теги из values
+- git-tracked values не хранят `stringData`; сервисы подключают уже созданные secrets по `existingSecretName`
+- `.\scripts\bootstrap\bootstrap-local.ps1` подготавливает локальные demo secrets вне git и переиспользует их между перезапусками
+- `platform-core/kubernetes/secrets/demo-*/external-secrets.yaml` создает тот же contract секретов для ESO/Vault-ready GitOps-стендов
 - наружу публикуется только `api-gateway`, остальные сервисы остаются cluster-local

@@ -21,10 +21,8 @@ configmap:
     PAYMENTS_BASE_URL: http://payments-service:8082
 
 secret:
-  enabled: true
-  stringData:
-    DB_USERNAME: orders
-    DB_PASSWORD: change-me
+  enabled: false
+  existingSecretName: orders-service-secrets
 
 readinessProbe:
   httpGet:

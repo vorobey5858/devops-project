@@ -112,6 +112,7 @@ if (-not $SkipFoundation) {
 
 if (-not $SkipObservability) {
   Assert-Deployment -Namespace "monitoring" -Name "kube-prometheus-stack-operator"
+  Assert-Resource -Namespace "monitoring" -Type "secret" -Name "grafana-admin-credentials"
 }
 
 if ((-not $SkipSecurityBaseline) -and (-not $SkipGitOps)) {
@@ -137,6 +138,12 @@ if (-not $SkipGitOps) {
 
   foreach ($application in $requiredApplications) {
     Assert-Application -Name $application
+  }
+
+  foreach ($namespace in @("demo-dev", "demo-preview", "demo-stage")) {
+    Assert-Resource -Namespace $namespace -Type "secret" -Name "api-gateway-secrets"
+    Assert-Resource -Namespace $namespace -Type "secret" -Name "orders-service-secrets"
+    Assert-Resource -Namespace $namespace -Type "secret" -Name "payments-service-secrets"
   }
 
   Assert-Resource -Namespace "demo-stage" -Type "rollout" -Name "api-gateway"

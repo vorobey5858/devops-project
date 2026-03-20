@@ -16,6 +16,7 @@ node_modules/
 __pycache__/
 .pytest_cache/
 .venv/
+.secrets/
 plan.md
 promts.md
 docs-architecture/project-status.md

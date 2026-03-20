@@ -10,6 +10,7 @@
 - `kubernetes/argocd/app-demo-services.yaml` задает входную точку для схемы app-of-apps с демонстрационными нагрузками.
 - `kubernetes/namespaces/team-template.yaml` остается базовым namespace шаблоном с quota и limits.
 - `kubernetes/namespaces/demo-environments.yaml` добавляет готовые демонстрационные namespace для `dev`, `preview` и `stage`.
+- `kubernetes/secrets/demo-*/external-secrets.yaml` задает Vault-backed `SecretStore` и `ExternalSecret` baseline для demo-окружений.
 - `templates/service-template/` содержит переиспользуемый чарт для рабочей нагрузки.
 - `docs/` фиксирует рабочий контракт для онбординга и наблюдаемости.
 
@@ -21,7 +22,7 @@
 - `Rollout` включается при `rollout.enabled: true` и в `stage` уже подключает контракт анализа через Prometheus.
 - `Service` создается всегда и остается стабильной точкой доступа.
 - `Ingress` опционален и включается только в окруженческих overlay сервиса.
-- `ConfigMap` и `Secret` выступают заглушками, чтобы команда могла начать без ожидания готовой внешней схемы управления секретами.
+- `ConfigMap` хранит только несекретную конфигурацию, а committed service values должны ссылаться на уже созданный `Secret` через `existingSecretName`.
 - `ServiceMonitor` опционален и использует те же метки, что и рабочая нагрузка.
 - `PodDisruptionBudget` и topology spread constraints можно включать через values без отдельного чарта на сервис.
 
@@ -48,7 +49,8 @@
 
 - Приложения ArgoCD уже привязаны к текущему удалённому репозиторию `https://github.com/vorobey5858/devops-project.git`.
 - CRD Argo Rollouts должны быть доставлены слоем `secure-delivery` до синка stage-приложений.
-- Управление секретами позже должно перейти с placeholder `Secret` на `ExternalSecret` или Vault-backed references.
+- Локальный bootstrap уже использует pre-created `Secret` references, а GitOps/Vault-ready baseline для тех же имен секретов лежит в `platform-core/kubernetes/secrets/`.
+- GitOps manifests фиксируют ветку через `targetRevision: refs/heads/main`, чтобы ArgoCD не дрейфовал между `master`, `HEAD` и фактической основной веткой репозитория.
 - SLO и alerting, которыми владеет reliability-слой, должны использовать те же метки и пути метрик, что определены здесь.
 - Локальный runtime использует образы вида `devops/<service>` и импорт в `k3s` containerd, а доставка через реестр остаётся задачей CI.
 
